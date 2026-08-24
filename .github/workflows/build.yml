@@ -13,7 +13,8 @@ jobs:
 
       - name: Unzip Source Code
         run: |
-          unzip -o DertetGPT-iOS-source.zip -d source_code
+          mkdir -p source_code
+          find . -maxdepth 1 -name "*.zip" -exec unzip -o {} -d source_code \;
 
       - name: Prepare Payload Directory
         run: |
@@ -21,7 +22,12 @@ jobs:
 
       - name: Compile Swift App
         run: |
-          xcrun -sdk iphoneos swiftc $(find source_code -name "*.swift") \
+          SWIFT_FILES=$(find . -name "*.swift")
+          if [ -z "$SWIFT_FILES" ]; then
+            echo "Помилка: У вашому ZIP немає файлів .swift!"
+            exit 1
+          fi
+          xcrun -sdk iphoneos swiftc $SWIFT_FILES \
             -target arm64-apple-ios17.0 \
             -emit-executable \
             -o Payload/DertetGPT
