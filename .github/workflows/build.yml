@@ -16,25 +16,25 @@ jobs:
           mkdir -p source_code
           find . -maxdepth 1 -name "*.zip" -exec unzip -o {} -d source_code \;
 
-      - name: Prepare Payload Directory
+      - name: Create App Bundle Structure
         run: |
-          mkdir -p Payload
+          mkdir -p Payload/DertetGPT.app
 
       - name: Compile Swift App
         run: |
           SWIFT_FILES=$(find . -name "*.swift")
           if [ -z "$SWIFT_FILES" ]; then
-            echo "Помилка: У вашому ZIP немає файлів .swift!"
+            echo "Помилка: Не знайдено файлів .swift!"
             exit 1
           fi
           xcrun -sdk iphoneos swiftc $SWIFT_FILES \
             -target arm64-apple-ios17.0 \
             -emit-executable \
-            -o Payload/DertetGPT
+            -o Payload/DertetGPT.app/DertetGPT
 
       - name: Create Info.plist & Package IPA
         run: |
-          cat <<EOF > Payload/Info.plist
+          cat <<EOF > Payload/DertetGPT.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
