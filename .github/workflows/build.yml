@@ -1,0 +1,66 @@
+name: Build macOS DMG
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build-mac:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip Source Code
+        run: |
+          mkdir -p source_code
+          find . -maxdepth 1 -name "*.zip" -exec unzip -o {} -d source_code \;
+
+      - name: Locate Xcode Project
+        id: locate
+        run: |
+          PROJ_PATH=$(find . -name "*.xcodeproj" | head -n 1)
+          if [ -z "$PROJ_PATH" ]; then
+            echo "Error: xcodeproj not found!"
+            exit 1
+          fi
+          PROJ_DIR=$(dirname "$PROJ_PATH")
+          SCHEME=$(xcodebuild -list -project "$PROJ_PATH" | awk '/Targets:/{flag=1;next}/Build Configurations:/{flag=0}flag' | head -n 1 | xargs)
+          echo "proj=$PROJ_PATH" >> $GITHUB_OUTPUT
+          echo "scheme=$SCHEME" >> $GITHUB_OUTPUT
+          echo "dir=$PROJ_DIR" >> $GITHUB_OUTPUT
+
+      - name: Build macOS App
+        run: |
+          PROJ="${{ steps.locate.outputs.proj }}"
+          SCHEME="${{ steps.locate.outputs.scheme }}"
+          
+          xcodebuild build \
+            -project "$PROJ" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk macosx \
+            -derivedDataPath ./build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package DMG
+        run: |
+          APP_PATH=$(find ./build/Build/Products/Release -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: .app binary not found!"
+            exit 1
+          fi
+          
+          mkdir -p dmg_folder
+          cp -R "$APP_PATH" dmg_folder/
+          ln -s /Applications dmg_folder/Applications
+          
+          hdiutil create -volname "ResertAI" -srcfolder dmg_folder -ov -format UDZO ResertAI.dmg
+
+      - name: Upload DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResertAI-macOS-DMG
+          path: ResertAI.dmg
