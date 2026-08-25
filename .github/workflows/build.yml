@@ -1,0 +1,78 @@
+name: Build macOS DMG
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build-mac:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip Source Code
+        run: |
+          find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
+
+      - name: Fix Xcode Paths & Project
+        run: |
+          PBX=$(find . -name "project.pbxproj" | head -n 1)
+          if [ -n "$PBX" ]; then
+            sed -i '' 's/SDKROOT = iphoneos;/SDKROOT = macosx;/g' "$PBX"
+            sed -i '' 's/SDKROOT = iphonesimulator;/SDKROOT = macosx;/g' "$PBX"
+            sed -i '' 's/SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";/SUPPORTED_PLATFORMS = "macosx iphoneos iphonesimulator";/g' "$PBX"
+          fi
+
+      - name: Compile macOS Binary Direct
+        run: |
+          mkdir -p ResertAI.app/Contents/MacOS
+          mkdir -p ResertAI.app/Contents/Resources
+          
+          SWIFT_FILES=$(find . -name "*.swift" ! -path "*/Preview Content/*")
+          
+          xcrun -sdk macosx swiftc $SWIFT_FILES \
+            -parse-as-library \
+            -framework SwiftUI \
+            -framework AppKit \
+            -target x86_64-apple-macos11.0 \
+            -o ResertAI.app/Contents/MacOS/ResertAI
+
+      - name: Create Info.plist
+        run: |
+          cat <<EOF > ResertAI.app/Contents/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>ResertAI</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.resert.ai</string>
+              <key>CFBundleName</key>
+              <string>ResertAI</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>10.15</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Package DMG
+        run: |
+          mkdir -p dmg_folder
+          cp -R ResertAI.app dmg_folder/
+          ln -s /Applications dmg_folder/Applications
+          
+          hdiutil create -volname "ResertAI" -srcfolder dmg_folder -ov -format UDZO ResertAI.dmg
+
+      - name: Upload DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResertAI-macOS-DMG
+          path: ResertAI.dmg
