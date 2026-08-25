@@ -1,0 +1,62 @@
+name: Build macOS DMG
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build-mac:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip Source Code
+        run: |
+          find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
+
+      - name: Patch Xcode Project Settings
+        run: |
+          PBX=$(find . -name "project.pbxproj" | head -n 1)
+          if [ -n "$PBX" ]; then
+            sed -i '' 's/SDKROOT = iphoneos;/SDKROOT = macosx;/g' "$PBX"
+            sed -i '' 's/SDKROOT = iphonesimulator;/SDKROOT = macosx;/g' "$PBX"
+            sed -i '' 's/SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";/SUPPORTED_PLATFORMS = "macosx iphoneos iphonesimulator";/g' "$PBX"
+            sed -i '' 's/TARGETED_DEVICE_FAMILY = "1,2";/TARGETED_DEVICE_FAMILY = "7";/g' "$PBX"
+          fi
+
+      - name: Build App
+        run: |
+          PROJ=$(find . -name "*.xcodeproj" | head -n 1)
+          SCHEME=$(xcodebuild -list -project "$PROJ" | grep -A 1 "Schemes:" | tail -n 1 | tr -d ' ')
+          
+          xcodebuild build \
+            -project "$PROJ" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath ./build \
+            MACOSX_DEPLOYMENT_TARGET=11.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Package DMG
+        run: |
+          APP_PATH=$(find ./build/Build/Products/Release -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "App binary missing!"
+            exit 1
+          fi
+          
+          mkdir -p dmg_folder
+          cp -R "$APP_PATH" dmg_folder/
+          ln -s /Applications dmg_folder/Applications
+          
+          hdiutil create -volname "ResertAI" -srcfolder dmg_folder -ov -format UDZO ResertAI.dmg
+
+      - name: Upload DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResertAI-macOS-DMG
+          path: ResertAI.dmg
