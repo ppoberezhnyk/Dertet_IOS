@@ -1,0 +1,154 @@
+name: Build macOS DMG & iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build-mac:
+    name: Build macOS DMG (Intel x86_64)
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip Source Code
+        run: |
+          find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
+
+      - name: Fix macOS Compatibility Issues
+        run: |
+          # Прибираємо iOS-специфічний import UIKit
+          find . -name "*.swift" -exec sed -i '' 's/import UIKit/#if canImport(UIKit)\nimport UIKit\n#endif/g' {} +
+          # Видаляємо суто мобільні модифікатори SwiftUI
+          find . -name "SettingsView.swift" -exec sed -i '' 's/, *keyboard:[^)]*//g' {} +
+          find . -name "SettingsView.swift" -exec sed -i '' 's/, *keyboardType:[^)]*//g' {} +
+          find . -name "SettingsView.swift" -exec sed -i '' 's/\.navigationBarTitleDisplayMode([^)]*)//g' {} +
+          find . -name "SettingsView.swift" -exec sed -i '' 's/topBarTrailing/primaryAction/g' {} +
+
+      - name: Compile macOS Binary (Intel x86_64)
+        run: |
+          mkdir -p ResertAI.app/Contents/MacOS
+          mkdir -p ResertAI.app/Contents/Resources
+          
+          SWIFT_FILES=$(find . -name "*.swift" ! -path "*/Preview Content/*")
+          
+          xcrun -sdk macosx swiftc $SWIFT_FILES \
+            -parse-as-library \
+            -framework SwiftUI \
+            -framework AppKit \
+            -target x86_64-apple-macos14.0 \
+            -o ResertAI.app/Contents/MacOS/ResertAI
+
+      - name: Create Native macOS Info.plist
+        run: |
+          cat <<EOF > ResertAI.app/Contents/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.plist">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>ResertAI</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.resert.ai</string>
+              <key>CFBundleName</key>
+              <string>ResertAI</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>14.0</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Package macOS DMG
+        run: |
+          mkdir -p dmg_folder
+          cp -R ResertAI.app dmg_folder/
+          ln -s /Applications dmg_folder/Applications
+          
+          hdiutil create -volname "ResertAI" -srcfolder dmg_folder -ov -format UDZO ResertAI.dmg
+
+      - name: Upload macOS DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResertAI-macOS-Intel-DMG
+          path: ResertAI.dmg
+
+  build-ios:
+    name: Build iOS Fullscreen IPA
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip Source Code
+        run: |
+          find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
+
+      - name: Clean Up Syntax
+        run: |
+          find . -name "SettingsView.swift" -exec sed -i '' 's/, *keyboard:[^)]*//g' {} +
+          find . -name "SettingsView.swift" -exec sed -i '' 's/, *keyboardType:[^)]*//g' {} +
+
+      - name: Compile iOS Binary
+        run: |
+          mkdir -p Payload/ResertAI.app
+          
+          SWIFT_FILES=$(find . -name "*.swift" ! -path "*/Preview Content/*")
+          
+          xcrun -sdk iphoneos swiftc -O $SWIFT_FILES \
+            -parse-as-library \
+            -framework SwiftUI \
+            -framework UIKit \
+            -target arm64-apple-ios17.0 \
+            -o Payload/ResertAI.app/ResertAI
+
+      - name: Create Fullscreen iOS Info.plist
+        run: |
+          cat <<EOF > Payload/ResertAI.app/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.plist">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>ResertAI</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.resert.ai</string>
+              <key>CFBundleName</key>
+              <string>ResertAI</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+              <key>MinimumOSVersion</key>
+              <string>17.0</string>
+              <key>UILaunchScreen</key>
+              <dict/>
+              <key>UISupportedInterfaceOrientations</key>
+              <array>
+                  <string>UIInterfaceOrientationPortrait</string>
+              </array>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Package iOS IPA
+        run: |
+          zip -r ResertAI.ipa Payload
+
+      - name: Upload iOS IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResertAI-iOS-Fullscreen-IPA
+          path: ResertAI.ipa
