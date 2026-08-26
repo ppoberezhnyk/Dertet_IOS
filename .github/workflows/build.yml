@@ -1,0 +1,145 @@
+name: Build macOS DMG & iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build-mac:
+    name: Build macOS DMG (Intel x86_64)
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip Source Code
+        run: |
+          find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
+
+      - name: Fix Compatibility & Clean Syntax
+        run: |
+          # Замінюємо застарілі макроси Glass у Palette.swift
+          find . -name "Palette.swift" -exec sed -i '' 's/let glass: Glass = tinted/let glass = Color.black.opacity(0.1)/g' {} +
+          find . -name "Palette.swift" -exec sed -i '' 's/func glassSurface.*/func glassSurface<S: Shape>(_ shape: S) -> some View { shape.fill(.ultraThinMaterial) }/g' {} +
+
+          # Прибираємо модифікатори UI, несумісні з macOS
+          find . -name "*.swift" -exec sed -i '' 's/\.toolbar(\.hidden, *for: *\.navigationBar)//g' {} +
+          find . -name "*.swift" -exec sed -i '' 's/\.toolbarBackground([^)]*)//g' {} +
+          find . -name "*.swift" -exec sed -i '' 's/\.navigationBarTitleDisplayMode([^)]*)//g' {} +
+
+      - name: Compile macOS Binary
+        run: |
+          mkdir -p Dertet.app/Contents/MacOS
+          mkdir -p Dertet.app/Contents/Resources
+          
+          # Отримуємо всі джерела Swift, крім Preview Content
+          FILES=$(find ResertAI -name "*.swift" ! -path "*/Preview Content/*")
+          
+          xcrun swiftc $FILES \
+            -parse-as-library \
+            -sdk $(xcrun --sdk macosx --show-sdk-path) \
+            -target x86_64-apple-macos14.0 \
+            -D CI_BUILD \
+            -o Dertet.app/Contents/MacOS/Dertet
+
+      - name: Create macOS Info.plist
+        run: |
+          cat <<EOF > Dertet.app/Contents/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.plist">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>Dertet</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.dertet.app</string>
+              <key>CFBundleName</key>
+              <string>Dertet</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>14.0</string>
+          </dict>
+          EOF
+
+      - name: Create DMG File
+        run: |
+          mkdir -p dmg_folder
+          cp -R Dertet.app dmg_folder/
+          ln -s /Applications dmg_folder/Applications
+          hdiutil create -volname "Dertet" -srcfolder dmg_folder -ov -format UDZO Dertet.dmg
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dertet-macOS-Intel-DMG
+          path: Dertet.dmg
+
+  build-ios:
+    name: Build iOS Fullscreen IPA
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip Source Code
+        run: |
+          find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
+
+      - name: Fix Compatibility
+        run: |
+          find . -name "Palette.swift" -exec sed -i '' 's/let glass: Glass = tinted/let glass = Color.black.opacity(0.1)/g' {} +
+          find . -name "Palette.swift" -exec sed -i '' 's/func glassSurface.*/func glassSurface<S: Shape>(_ shape: S) -> some View { shape.fill(.ultraThinMaterial) }/g' {} +
+
+      - name: Compile iOS Binary
+        run: |
+          mkdir -p Payload/Dertet.app
+          
+          FILES=$(find ResertAI -name "*.swift" ! -path "*/Preview Content/*")
+          
+          xcrun swiftc $FILES \
+            -parse-as-library \
+            -sdk $(xcrun --sdk iphoneos --show-sdk-path) \
+            -target arm64-apple-ios17.0 \
+            -D CI_BUILD \
+            -o Payload/Dertet.app/Dertet
+
+      - name: Create iOS Info.plist
+        run: |
+          cat <<EOF > Payload/Dertet.app/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.plist">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>Dertet</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.dertet.app</string>
+              <key>CFBundleName</key>
+              <string>Dertet</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+              <key>UILaunchScreen</key>
+              <dict/>
+          </dict>
+          EOF
+
+      - name: Package IPA File
+        run: |
+          zip -r Dertet.ipa Payload
+
+      - name: Upload iOS IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dertet-iOS-Fullscreen-IPA
+          path: Dertet.ipa
