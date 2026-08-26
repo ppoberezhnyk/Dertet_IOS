@@ -16,21 +16,18 @@ jobs:
         run: |
           mkdir -p extracted
           find . -maxdepth 1 -name "*.zip" -exec unzip -o {} -d extracted/ \;
+          echo "=== Found Xcode Projects ==="
+          find extracted -name "*.xcodeproj"
 
       - name: Build macOS App
         run: |
           PROJ_PATH=$(find extracted -name "*.xcodeproj" | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
-          PROJ_NAME=$(basename "$PROJ_PATH" .xcodeproj)
           
           cd "$PROJ_DIR"
           
-          SCHEME_NAME=$(xcodebuild -list -project "$(basename "$PROJ_PATH")" | awk '/Schemes:/{flag=1; next} /^[[:space:]]*$/{flag=0} flag' | xargs | awk '{print $1}')
-          if [ -z "$SCHEME_NAME" ]; then SCHEME_NAME="$PROJ_NAME"; fi
-
           xcodebuild build \
             -project "$(basename "$PROJ_PATH")" \
-            -scheme "$SCHEME_NAME" \
             -destination "generic/platform=macOS" \
             -configuration Release \
             CODE_SIGNING_ALLOWED=NO \
@@ -56,16 +53,11 @@ jobs:
         run: |
           PROJ_PATH=$(find extracted -name "*.xcodeproj" | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
-          PROJ_NAME=$(basename "$PROJ_PATH" .xcodeproj)
           
           cd "$PROJ_DIR"
           
-          SCHEME_NAME=$(xcodebuild -list -project "$(basename "$PROJ_PATH")" | awk '/Schemes:/{flag=1; next} /^[[:space:]]*$/{flag=0} flag' | xargs | awk '{print $1}')
-          if [ -z "$SCHEME_NAME" ]; then SCHEME_NAME="$PROJ_NAME"; fi
-
           xcodebuild build \
             -project "$(basename "$PROJ_PATH")" \
-            -scheme "$SCHEME_NAME" \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -configuration Release \
