@@ -18,12 +18,10 @@ jobs:
 
       - name: Clean Syntax & Missing Assets
         run: |
-          # Виправляємо несумісний синтаксис у коді
           find . -name "*.swift" -exec sed -i '' 's/\.toolbar(\.hidden, *for: *\.navigationBar)//g' {} +
           find . -name "*.swift" -exec sed -i '' 's/\.toolbarBackground([^)]*)//g' {} +
           find . -name "*.swift" -exec sed -i '' 's/\.navigationBarTitleDisplayMode([^)]*)//g' {} +
           
-          # Створюємо заглушку для Preview Assets
           find . -type d -name "Preview Content" | while read -r dir; do
             mkdir -p "$dir/Preview Assets.xcassets"
             echo '{"info":{"author":"xcode","version":1}}' > "$dir/Preview Assets.xcassets/Contents.json"
@@ -31,10 +29,13 @@ jobs:
 
       - name: Build macOS App via Xcode
         run: |
-          PROJ=$(find . -name "*.xcodeproj" | head -n 1)
+          PROJ_PATH=$(find . -name "*.xcodeproj" | head -n 1)
+          PROJ_DIR=$(dirname "$PROJ_PATH")
+          
+          cd "$PROJ_DIR"
           
           xcodebuild build \
-            -project "$PROJ" \
+            -project "$(basename "$PROJ_PATH")" \
             -scheme "ResertAI" \
             -destination "generic/platform=macOS,arch=x86_64" \
             -configuration Release \
@@ -43,7 +44,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             DEVELOPMENT_ASSET_PATHS="" \
             ENABLE_PREVIEWS=NO \
-            BUILD_DIR="build"
+            BUILD_DIR="$GITHUB_WORKSPACE/build"
 
       - name: Package macOS DMG
         run: |
@@ -79,10 +80,13 @@ jobs:
 
       - name: Build iOS App via Xcode
         run: |
-          PROJ=$(find . -name "*.xcodeproj" | head -n 1)
+          PROJ_PATH=$(find . -name "*.xcodeproj" | head -n 1)
+          PROJ_DIR=$(dirname "$PROJ_PATH")
+          
+          cd "$PROJ_DIR"
           
           xcodebuild build \
-            -project "$PROJ" \
+            -project "$(basename "$PROJ_PATH")" \
             -scheme "ResertAI" \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
@@ -92,7 +96,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             DEVELOPMENT_ASSET_PATHS="" \
             ENABLE_PREVIEWS=NO \
-            BUILD_DIR="build"
+            BUILD_DIR="$GITHUB_WORKSPACE/build"
 
       - name: Package iOS IPA
         run: |
