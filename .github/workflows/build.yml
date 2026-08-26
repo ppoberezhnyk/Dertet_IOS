@@ -1,12 +1,12 @@
-name: Build macOS DMG & iOS IPA
+name: Build iOS IPA
 
 on:
   workflow_dispatch:
   push:
 
 jobs:
-  build-all:
-    name: Build Apps from ZIP
+  build-ios:
+    name: Build iOS App
     runs-on: macos-14
     steps:
       - name: Checkout repository
@@ -16,40 +16,8 @@ jobs:
         run: |
           mkdir -p extracted
           find . -maxdepth 1 -name "*.zip" -exec unzip -o {} -d extracted/ \;
-          echo "=== Found Xcode Projects ==="
-          find extracted -name "*.xcodeproj"
 
-      - name: Build macOS App
-        run: |
-          PROJ_PATH=$(find extracted -name "*.xcodeproj" | head -n 1)
-          PROJ_DIR=$(dirname "$PROJ_PATH")
-          
-          cd "$PROJ_DIR"
-          
-          xcodebuild build \
-            -project "$(basename "$PROJ_PATH")" \
-            -destination "generic/platform=macOS" \
-            -configuration Release \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            BUILD_DIR="$GITHUB_WORKSPACE/build_mac"
-
-      - name: Package macOS DMG
-        run: |
-          APP_PATH=$(find build_mac -name "*.app" -type d | head -n 1)
-          mkdir -p dmg_folder
-          cp -R "$APP_PATH" dmg_folder/
-          ln -s /Applications dmg_folder/Applications
-          hdiutil create -volname "ResertAI" -srcfolder dmg_folder -ov -format UDZO ResertAI.dmg
-
-      - name: Upload macOS DMG
-        uses: actions/upload-artifact@v4
-        with:
-          name: ResertAI-macOS-DMG
-          path: ResertAI.dmg
-
-      - name: Build iOS App
+      - name: Compile iOS Project
         run: |
           PROJ_PATH=$(find extracted -name "*.xcodeproj" | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
@@ -64,6 +32,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
+            ASSETCATALOG_COMPILER_SKIP_APP_STORE_DEPLOYMENT=YES \
             BUILD_DIR="$GITHUB_WORKSPACE/build_ios"
 
       - name: Package iOS IPA
