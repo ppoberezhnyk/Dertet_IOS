@@ -21,18 +21,21 @@ jobs:
         run: |
           PROJ_PATH=$(find extracted -name "*.xcodeproj" | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
+          PROJ_NAME=$(basename "$PROJ_PATH" .xcodeproj)
           
           cd "$PROJ_DIR"
           
+          SCHEME_NAME=$(xcodebuild -list -project "$(basename "$PROJ_PATH")" | awk '/Schemes:/{flag=1; next} /^[[:space:]]*$/{flag=0} flag' | xargs | awk '{print $1}')
+          if [ -z "$SCHEME_NAME" ]; then SCHEME_NAME="$PROJ_NAME"; fi
+
           xcodebuild build \
             -project "$(basename "$PROJ_PATH")" \
-            -scheme "ResertAI" \
-            -destination "generic/platform=macOS,arch=x86_64" \
+            -scheme "$SCHEME_NAME" \
+            -destination "generic/platform=macOS" \
             -configuration Release \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            ENABLE_PREVIEWS=NO \
             BUILD_DIR="$GITHUB_WORKSPACE/build_mac"
 
       - name: Package macOS DMG
@@ -46,26 +49,29 @@ jobs:
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
-          name: ResertAI-macOS-Intel-DMG
+          name: ResertAI-macOS-DMG
           path: ResertAI.dmg
 
       - name: Build iOS App
         run: |
           PROJ_PATH=$(find extracted -name "*.xcodeproj" | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
+          PROJ_NAME=$(basename "$PROJ_PATH" .xcodeproj)
           
           cd "$PROJ_DIR"
           
+          SCHEME_NAME=$(xcodebuild -list -project "$(basename "$PROJ_PATH")" | awk '/Schemes:/{flag=1; next} /^[[:space:]]*$/{flag=0} flag' | xargs | awk '{print $1}')
+          if [ -z "$SCHEME_NAME" ]; then SCHEME_NAME="$PROJ_NAME"; fi
+
           xcodebuild build \
             -project "$(basename "$PROJ_PATH")" \
-            -scheme "ResertAI" \
+            -scheme "$SCHEME_NAME" \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -configuration Release \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            ENABLE_PREVIEWS=NO \
             BUILD_DIR="$GITHUB_WORKSPACE/build_ios"
 
       - name: Package iOS IPA
@@ -78,5 +84,5 @@ jobs:
       - name: Upload iOS IPA
         uses: actions/upload-artifact@v4
         with:
-          name: ResertAI-iOS-Fullscreen-IPA
+          name: ResertAI-iOS-IPA
           path: ResertAI.ipa
