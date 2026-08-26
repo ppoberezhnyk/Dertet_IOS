@@ -1,0 +1,83 @@
+name: Build macOS DMG & iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build-mac:
+    name: Build macOS DMG (Intel x86_64)
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip Source Code
+        run: |
+          find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
+
+      - name: Build macOS App via Xcode
+        run: |
+          PROJ=$(find . -name "*.xcodeproj" | head -n 1)
+          
+          xcodebuild build \
+            -project "$PROJ" \
+            -scheme "ResertAI" \
+            -destination "generic/platform=macOS,arch=x86_64" \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            BUILD_DIR="build"
+
+      - name: Package macOS DMG
+        run: |
+          APP_PATH=$(find build -name "*.app" -type d | head -n 1)
+          mkdir -p dmg_folder
+          cp -R "$APP_PATH" dmg_folder/
+          ln -s /Applications dmg_folder/Applications
+          hdiutil create -volname "ResertAI" -srcfolder dmg_folder -ov -format UDZO ResertAI.dmg
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResertAI-macOS-Intel-DMG
+          path: ResertAI.dmg
+
+  build-ios:
+    name: Build iOS Fullscreen IPA
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unzip Source Code
+        run: |
+          find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
+
+      - name: Build iOS App via Xcode
+        run: |
+          PROJ=$(find . -name "*.xcodeproj" | head -n 1)
+          
+          xcodebuild build \
+            -project "$PROJ" \
+            -scheme "ResertAI" \
+            -sdk iphoneos \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            BUILD_DIR="build"
+
+      - name: Package iOS IPA
+        run: |
+          APP_PATH=$(find build -name "*.app" -type d | head -n 1)
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r ResertAI.ipa Payload
+
+      - name: Upload iOS IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ResertAI-iOS-Fullscreen-IPA
+          path: ResertAI.ipa
