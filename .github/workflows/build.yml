@@ -16,6 +16,19 @@ jobs:
         run: |
           find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
 
+      - name: Clean Syntax & Missing Assets
+        run: |
+          # Виправляємо несумісний синтаксис у коді
+          find . -name "*.swift" -exec sed -i '' 's/\.toolbar(\.hidden, *for: *\.navigationBar)//g' {} +
+          find . -name "*.swift" -exec sed -i '' 's/\.toolbarBackground([^)]*)//g' {} +
+          find . -name "*.swift" -exec sed -i '' 's/\.navigationBarTitleDisplayMode([^)]*)//g' {} +
+          
+          # Створюємо заглушку для Preview Assets
+          find . -type d -name "Preview Content" | while read -r dir; do
+            mkdir -p "$dir/Preview Assets.xcassets"
+            echo '{"info":{"author":"xcode","version":1}}' > "$dir/Preview Assets.xcassets/Contents.json"
+          done
+
       - name: Build macOS App via Xcode
         run: |
           PROJ=$(find . -name "*.xcodeproj" | head -n 1)
@@ -28,6 +41,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_ASSET_PATHS="" \
+            ENABLE_PREVIEWS=NO \
             BUILD_DIR="build"
 
       - name: Package macOS DMG
@@ -55,6 +70,13 @@ jobs:
         run: |
           find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
 
+      - name: Clean Missing Assets
+        run: |
+          find . -type d -name "Preview Content" | while read -r dir; do
+            mkdir -p "$dir/Preview Assets.xcassets"
+            echo '{"info":{"author":"xcode","version":1}}' > "$dir/Preview Assets.xcassets/Contents.json"
+          done
+
       - name: Build iOS App via Xcode
         run: |
           PROJ=$(find . -name "*.xcodeproj" | head -n 1)
@@ -63,10 +85,13 @@ jobs:
             -project "$PROJ" \
             -scheme "ResertAI" \
             -sdk iphoneos \
+            -destination "generic/platform=iOS" \
             -configuration Release \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_ASSET_PATHS="" \
+            ENABLE_PREVIEWS=NO \
             BUILD_DIR="build"
 
       - name: Package iOS IPA
