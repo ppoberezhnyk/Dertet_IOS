@@ -16,15 +16,18 @@ jobs:
         run: |
           find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
 
-      - name: Clean Syntax & Missing Assets
+      - name: Fix Compatibility & Assets
         run: |
+          # Прибираємо несумісний синтаксис для macOS
           find . -name "*.swift" -exec sed -i '' 's/\.toolbar(\.hidden, *for: *\.navigationBar)//g' {} +
           find . -name "*.swift" -exec sed -i '' 's/\.toolbarBackground([^)]*)//g' {} +
           find . -name "*.swift" -exec sed -i '' 's/\.navigationBarTitleDisplayMode([^)]*)//g' {} +
-          
-          find . -type d -name "Preview Content" | while read -r dir; do
-            mkdir -p "$dir/Preview Assets.xcassets"
-            echo '{"info":{"author":"xcode","version":1}}' > "$dir/Preview Assets.xcassets/Contents.json"
+          find . -name "Palette.swift" -exec sed -i '' 's/let glass: Glass = tinted/let glass = Color.black.opacity(0.1)/g' {} +
+
+          # Створюємо базову структуру Asset Catalog, щоб запобігти збою actool
+          find . -name "Assets.xcassets" -type d | while read -r dir; do
+            mkdir -p "$dir/AppIcon.appiconset"
+            echo '{"images":[],"info":{"author":"xcode","version":1}}' > "$dir/AppIcon.appiconset/Contents.json"
           done
 
       - name: Build macOS App via Xcode
@@ -43,6 +46,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             DEVELOPMENT_ASSET_PATHS="" \
+            ASSETCATALOG_COMPILER_APPICON_NAME="" \
             ENABLE_PREVIEWS=NO \
             BUILD_DIR="$GITHUB_WORKSPACE/build"
 
@@ -71,11 +75,13 @@ jobs:
         run: |
           find . -maxdepth 1 -name "*.zip" -exec unzip -o {} \;
 
-      - name: Clean Missing Assets
+      - name: Fix Compatibility & Assets
         run: |
-          find . -type d -name "Preview Content" | while read -r dir; do
-            mkdir -p "$dir/Preview Assets.xcassets"
-            echo '{"info":{"author":"xcode","version":1}}' > "$dir/Preview Assets.xcassets/Contents.json"
+          find . -name "Palette.swift" -exec sed -i '' 's/let glass: Glass = tinted/let glass = Color.black.opacity(0.1)/g' {} +
+          
+          find . -name "Assets.xcassets" -type d | while read -r dir; do
+            mkdir -p "$dir/AppIcon.appiconset"
+            echo '{"images":[],"info":{"author":"xcode","version":1}}' > "$dir/AppIcon.appiconset/Contents.json"
           done
 
       - name: Build iOS App via Xcode
@@ -95,6 +101,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             DEVELOPMENT_ASSET_PATHS="" \
+            ASSETCATALOG_COMPILER_APPICON_NAME="" \
             ENABLE_PREVIEWS=NO \
             BUILD_DIR="$GITHUB_WORKSPACE/build"
 
