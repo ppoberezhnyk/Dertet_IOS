@@ -17,7 +17,7 @@ jobs:
           mkdir -p extracted
           find . -maxdepth 1 -name "*.zip" -exec unzip -o {} -d extracted/ \;
 
-      - name: Compile iOS Project
+      - name: Build iOS Project
         run: |
           PROJ_PATH=$(find extracted -name "*.xcodeproj" | head -n 1)
           PROJ_DIR=$(dirname "$PROJ_PATH")
